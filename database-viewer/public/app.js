@@ -4,6 +4,18 @@ const searchInput = document.getElementById('searchInput')
 const genderFilter = document.getElementById('genderFilter')
 const refreshBtn = document.getElementById('refreshBtn')
 
+function renderTags(values, className = 'tag') {
+    if (!values || values.length === 0) {
+        return '<span class="empty">Нет</span>'
+    }
+
+    return `
+    <div class="tags">
+      ${values.map((value) => `<span class="${className}">${value}</span>`).join('')}
+    </div>
+  `
+}
+
 async function loadUsers() {
     statusEl.textContent = 'Загрузка...'
     usersList.innerHTML = ''
@@ -21,70 +33,77 @@ async function loadUsers() {
 
         if (!Array.isArray(users) || users.length === 0) {
             statusEl.textContent = 'Записи не найдены'
+            usersList.innerHTML = ''
             return
         }
 
         statusEl.textContent = `Найдено записей: ${users.length}`
 
-        for (const user of users) {
-            const card = document.createElement('div')
-            card.className = 'card'
+        usersList.innerHTML = `
+      <div class="table-wrapper">
+        <table class="users-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Имя</th>
+              <th>Пол / возраст / город</th>
+              <th>Анкета</th>
+              <th>Предпочтения</th>
+              <th>Интересы</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${users
+            .map(
+                (user) => `
+                <tr>
+                  <td class="id-cell">#${user.id}</td>
 
-            card.innerHTML = `
-        <div class="card-top">
-          <div>
-            <h3>#${user.id} — ${user.name}</h3>
-            <div class="meta">
-              ${user.gender}, ${user.age} лет, ${user.city}
-            </div>
-          </div>
-        </div>
+                  <td>
+                    <div><strong>${user.name}</strong></div>
+                  </td>
 
-        <div class="section">
-          <div class="section-title">Анкета</div>
-          <div class="pref-box">
-            <div><b>Цель:</b> ${user.relationship_goal}</div>
-            <div><b>Образ жизни:</b> ${user.lifestyle}</div>
-            <div><b>Bio:</b> ${user.bio || '-'}</div>
-          </div>
-        </div>
+                  <td>
+                    <div>${user.gender}</div>
+                    <div class="meta-text">${user.age} лет</div>
+                    <div class="meta-text">${user.city}</div>
+                  </td>
 
-        <div class="section">
-          <div class="section-title">Предпочтения</div>
-          <div class="pref-box">
-            <div><b>Ищет пол:</b> ${user.preferred_gender}</div>
-            <div><b>Возраст:</b> ${user.age_from} - ${user.age_to}</div>
-            <div><b>Город:</b> ${user.preferred_city || '-'}</div>
-            <div><b>Цель:</b> ${user.preferred_goal || '-'}</div>
-            <div><b>Образ жизни:</b> ${user.preferred_lifestyle || '-'}</div>
-            <div><b>Допускает вредные привычки:</b> ${user.has_bad_habits ? 'Да' : 'Нет'}</div>
-          </div>
-        </div>
+                  <td>
+                    <div class="pref-box">
+                      <div><b>Цель:</b> ${user.relationship_goal}</div>
+                      <div><b>Образ жизни:</b> ${user.lifestyle}</div>
+                      <div><b>Вредные привычки:</b> ${user.bad_habits || '-'}</div>
+                      <div class="bio-cell"><b>Bio:</b> ${user.bio || '-'}</div>
+                    </div>
+                  </td>
 
-        <div class="section">
-          <div class="section-title">Интересы</div>
-          <div class="tags">
-            ${(user.interests || []).map((i) => `<span class="tag">${i}</span>`).join('')}
-          </div>
-        </div>
+                  <td>
+                    <div class="pref-box">
+                      <div><b>Ищет пол:</b> ${user.preferred_gender}</div>
+                      <div><b>Возраст:</b> ${user.age_from} - ${user.age_to}</div>
+                      <div><b>Город:</b> ${user.preferred_city || '-'}</div>
+                      <div><b>Цель:</b> ${user.preferred_goal || '-'}</div>
+                      <div><b>Образ жизни:</b> ${user.preferred_lifestyle || '-'}</div>
+                      <div><b>Вредные привычки:</b> ${user.preferred_bad_habits || '-'}</div>
+                    </div>
+                  </td>
 
-        <div class="section">
-          <div class="section-title">Вредные привычки</div>
-          <div class="tags">
-            ${
-                (user.bad_habits || []).length
-                    ? user.bad_habits.map((h) => `<span class="tag bad-tag">${h}</span>`).join('')
-                    : '<span class="meta">Нет</span>'
-            }
-          </div>
-        </div>
-      `
-
-            usersList.appendChild(card)
-        }
+                  <td>
+                    ${renderTags(user.interests, 'tag')}
+                  </td>
+                </tr>
+              `,
+            )
+            .join('')}
+          </tbody>
+        </table>
+      </div>
+    `
     } catch (e) {
         console.error(e)
         statusEl.textContent = 'Ошибка загрузки данных'
+        usersList.innerHTML = ''
     }
 }
 

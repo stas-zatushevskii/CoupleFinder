@@ -24,29 +24,30 @@ app.get('/api/users', async (req, res) => {
         const { search = '', gender = '' } = req.query
 
         const query = `
-      SELECT
-        u.id,
-        u.name,
-        u.gender,
-        u.age,
-        u.city,
-        u.relationship_goal,
-        u.lifestyle,
-        u.bio,
-        p.preferred_gender,
-        p.age_from,
-        p.age_to,
-        p.preferred_city,
-        p.preferred_goal,
-        p.preferred_lifestyle,
-        p.has_bad_habits
-      FROM users u
-      JOIN user_preferences p ON p.user_id = u.id
-      WHERE
-        ($1 = '' OR LOWER(u.name) LIKE LOWER($1) OR LOWER(u.city) LIKE LOWER($1))
-        AND ($2 = '' OR u.gender = $2)
-      ORDER BY u.id DESC
-    `
+            SELECT
+                u.id,
+                u.name,
+                u.gender,
+                u.age,
+                u.city,
+                u.relationship_goal,
+                u.lifestyle,
+                u.bad_habits,
+                u.bio,
+                p.preferred_gender,
+                p.age_from,
+                p.age_to,
+                p.preferred_city,
+                p.preferred_goal,
+                p.preferred_lifestyle,
+                p.preferred_bad_habits
+            FROM users u
+                     JOIN user_preferences p ON p.user_id = u.id
+            WHERE
+                ($1 = '' OR LOWER(u.name) LIKE LOWER($1) OR LOWER(u.city) LIKE LOWER($1))
+              AND ($2 = '' OR u.gender = $2)
+            ORDER BY u.id DESC
+        `
 
         const searchValue = search ? `%${search}%` : ''
         const result = await pool.query(query, [searchValue, gender])
@@ -58,15 +59,9 @@ app.get('/api/users', async (req, res) => {
                 [row.id]
             )
 
-            const badHabitsResult = await pool.query(
-                `SELECT bad_habit FROM user_bad_habits WHERE user_id = $1 ORDER BY bad_habit`,
-                [row.id]
-            )
-
             users.push({
                 ...row,
                 interests: interestsResult.rows.map((r) => r.interest),
-                bad_habits: badHabitsResult.rows.map((r) => r.bad_habit),
             })
         }
 
