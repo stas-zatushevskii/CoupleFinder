@@ -49,7 +49,7 @@ func main() {
 	router := transporthttp.NewRouter(handler)
 
 	log.Printf("server started on %s", cfg.HTTPAddr)
-	if err := http.ListenAndServe(cfg.HTTPAddr, router); err != nil {
+	if err := http.ListenAndServe(cfg.HTTPAddr, transporthttp.WithCors(router)); err != nil {
 		log.Fatal(err)
 	}
 }
