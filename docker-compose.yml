@@ -45,5 +45,20 @@ services:
     ports:
       - "3000:80"
 
+  db-viewer:
+    build:
+      context: ./db-viewer
+      dockerfile: Dockerfile
+    container_name: couplefinder-db-viewer
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 4000
+      DATABASE_URL: "postgres://postgres:postgres@postgres:5432/couplefinder"
+    ports:
+      - "4000:4000"
+
 volumes:
   postgres_data:
