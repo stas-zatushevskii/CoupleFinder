@@ -47,7 +47,7 @@ services:
 
   db-viewer:
     build:
-      context: ./db-viewer
+      context: ./database-viewer
       dockerfile: Dockerfile
     container_name: couplefinder-db-viewer
     restart: unless-stopped
