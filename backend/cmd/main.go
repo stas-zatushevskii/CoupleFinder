@@ -14,15 +14,18 @@ import (
 
 func main() {
 	cfg := config.Load()
+	log.Println("Config load: successfully")
 
 	db, err := postgres.New(cfg.DSN)
 	if err != nil {
 		log.Fatal(err)
 	}
+	log.Println("Database connection: successfully")
 
 	if err := postgres.RunMigrations(db); err != nil {
 		log.Fatal(err)
 	}
+	log.Println("Database migrations: successfully")
 
 	userRepo := postgresrepo.NewPostgresUserRepository(db)
 	runRepo := postgresrepo.NewPostgresRunRepository(db)
