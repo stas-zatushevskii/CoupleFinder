@@ -45,7 +45,7 @@ npm install
 Запустить сервис:
 
 ```bash
-DATABASE_URL="postgres://postgres:postgres@localhost:5433/couplefinder" npm start
+DATABASE_URL="postgres://postgres:postgres@localhost:5432/couplefinder" npm start
 ```
 
 После запуска страница будет доступна по адресу:
@@ -62,7 +62,7 @@ http://localhost:4000
 Пример:
 
 ```text
-postgres://postgres:postgres@localhost:5433/couplefinder
+postgres://postgres:postgres@localhost:5432/couplefinder
 ```
 
 ### `PORT`
@@ -77,7 +77,7 @@ postgres://postgres:postgres@localhost:5433/couplefinder
 Пример запуска с указанием порта:
 
 ```bash
-PORT=4000 DATABASE_URL="postgres://postgres:postgres@localhost:5433/couplefinder" npm start
+PORT=4000 DATABASE_URL="postgres://postgres:postgres@localhost:5432/couplefinder" npm start
 ```
 
 ## API

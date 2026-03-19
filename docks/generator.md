@@ -34,13 +34,13 @@ cmd/seed/main.go
 Через переменную окружения `POSTGRES_DSN`:
 
 ```bash
-POSTGRES_DSN="postgres://postgres:postgres@localhost:5433/couplefinder?sslmode=disable" go run ./cmd/seed -count 300
+POSTGRES_DSN="postgres://postgres:postgres@localhost:5432/couplefinder?sslmode=disable" go run ./cmd/seed -count 300
 ```
 
 Или явно через флаг `-dsn`:
 
 ```bash
-go run ./cmd/seed -count 300 -dsn "postgres://postgres:postgres@localhost:5433/couplefinder?sslmode=disable"
+go run ./cmd/seed -count 300 -dsn "postgres://postgres:postgres@localhost:5432/couplefinder?sslmode=disable"
 ```
 
 ## Основные параметры
@@ -60,7 +60,7 @@ go run ./cmd/seed -count 100
 Пример:
 
 ```bash
-go run ./cmd/seed -count 100 -dsn "postgres://postgres:postgres@localhost:5433/couplefinder?sslmode=disable"
+go run ./cmd/seed -count 100 -dsn "postgres://postgres:postgres@localhost:5432/couplefinder?sslmode=disable"
 ```
 
 ## Что важно перед запуском
