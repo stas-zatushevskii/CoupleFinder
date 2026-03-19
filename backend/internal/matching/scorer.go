@@ -1,0 +1,180 @@
+package matching
+
+import (
+	"math"
+	"strings"
+
+	"backend/internal/domain"
+)
+
+type Scorer struct{}
+
+func NewScorer() *Scorer {
+	return &Scorer{}
+}
+
+func (s *Scorer) Score(a, b domain.User) float64 {
+	if !passesHardFilters(a.Preferences, b) {
+		return 0
+	}
+
+	interestsScore := calcInterestsScore(a.Interests, b.Interests)
+	ageScore := calcAgeScore(a.Preferences.AgeFrom, a.Preferences.AgeTo, b.Age)
+	cityScore := calcCityScore(a.Preferences.PreferredCity, b.City)
+	goalScore := calcGoalScore(a.Preferences.PreferredGoal, b.RelationshipGoal)
+	lifestyleScore := calcLifestyleScore(a.Preferences.PreferredLifestyle, b.Lifestyle)
+	habitsScore := calcBadHabitsScore(a.Preferences.PreferredBadHabits, b.BadHabits)
+
+	score := 0.40*interestsScore +
+		0.20*ageScore +
+		0.15*cityScore +
+		0.10*goalScore +
+		0.10*lifestyleScore +
+		0.05*habitsScore
+
+	if score < 0 {
+		return 0
+	}
+	if score > 1 {
+		return 1
+	}
+	return score
+}
+
+func passesHardFilters(pref domain.Preferences, candidate domain.User) bool {
+	if pref.PreferredGender != "" && pref.PreferredGender != candidate.Gender {
+		return false
+	}
+	if candidate.Age < pref.AgeFrom || candidate.Age > pref.AgeTo {
+		return false
+	}
+	if pref.PreferredCity != "" && !strings.EqualFold(pref.PreferredCity, candidate.City) {
+		return false
+	}
+	return true
+}
+
+func calcInterestsScore(a, b []string) float64 {
+	if len(a) == 0 {
+		return 0
+	}
+
+	set := make(map[string]struct{}, len(a))
+	for _, v := range a {
+		set[strings.ToLower(v)] = struct{}{}
+	}
+
+	var common int
+	for _, v := range b {
+		if _, ok := set[strings.ToLower(v)]; ok {
+			common++
+		}
+	}
+
+	return float64(common) / float64(len(a))
+}
+
+func calcAgeScore(ageFrom, ageTo, candidateAge int) float64 {
+	center := float64(ageFrom+ageTo) / 2.0
+	diff := math.Abs(float64(candidateAge) - center)
+
+	maxAllowedDiff := math.Max(float64(ageTo-ageFrom)/2.0, 1)
+	score := 1 - diff/maxAllowedDiff
+
+	if score < 0 {
+		return 0
+	}
+	if score > 1 {
+		return 1
+	}
+	return score
+}
+
+func calcCityScore(expectedCity, candidateCity string) float64 {
+	if expectedCity == "" {
+		return 1
+	}
+	if strings.EqualFold(expectedCity, candidateCity) {
+		return 1
+	}
+	return 0
+}
+
+func calcGoalScore(expected, actual domain.RelationshipGoal) float64 {
+	if expected == "" {
+		return 1
+	}
+	if expected == actual {
+		return 1
+	}
+	if (expected == domain.GoalFriendship && actual == domain.GoalCommunication) ||
+		(expected == domain.GoalCommunication && actual == domain.GoalFriendship) {
+		return 0.5
+	}
+	return 0
+}
+
+func calcLifestyleScore(expected, actual domain.Lifestyle) float64 {
+	if expected == "" {
+		return 1
+	}
+	if expected == actual {
+		return 1
+	}
+	if (expected == domain.LifestyleActive && actual == domain.LifestyleBalanced) ||
+		(expected == domain.LifestyleBalanced && actual == domain.LifestyleActive) ||
+		(expected == domain.LifestyleBalanced && actual == domain.LifestyleHome) ||
+		(expected == domain.LifestyleHome && actual == domain.LifestyleBalanced) {
+		return 0.5
+	}
+	return 0
+}
+
+func calcBadHabitsScore(expected, actual domain.BadHabits) float64 {
+	if expected == "" {
+		return 1
+	}
+	if expected == actual {
+		return 1
+	}
+	if (expected == domain.HabitsOccasionally && actual == domain.HabitsSmoking) ||
+		(expected == domain.HabitsSmoking && actual == domain.HabitsOccasionally) {
+		return 0.5
+	}
+	return 0
+}
+
+func (s *Scorer) ScoreBySearch(filters domain.SearchFilters, candidate domain.User) float64 {
+	if filters.Gender != "" && filters.Gender != candidate.Gender {
+		return 0
+	}
+	if candidate.Age < filters.AgeFrom || candidate.Age > filters.AgeTo {
+		return 0
+	}
+	if filters.City != "" && !strings.EqualFold(filters.City, candidate.City) {
+		return 0
+	}
+
+	interestsScore := calcInterestsScore(filters.Interests, candidate.Interests)
+	ageScore := calcAgeScore(filters.AgeFrom, filters.AgeTo, candidate.Age)
+	cityScore := calcCityScore(filters.City, candidate.City)
+	goalScore := calcGoalScore(filters.RelationshipGoal, candidate.RelationshipGoal)
+	lifestyleScore := calcLifestyleScore(filters.Lifestyle, candidate.Lifestyle)
+	habitsScore := calcBadHabitsScore(filters.BadHabits, candidate.BadHabits)
+
+	score := 0.40*interestsScore +
+		0.20*ageScore +
+		0.15*cityScore +
+		0.10*goalScore +
+		0.10*lifestyleScore +
+		0.05*habitsScore
+
+	if score < 0 {
+		return 0
+	}
+	if score > 1 {
+		return 1
+	}
+
+	return score
+}
