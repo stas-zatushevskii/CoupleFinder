@@ -6,7 +6,7 @@ body {
 }
 
 .container {
-    max-width: 1400px;
+    max-width: 1450px;
     margin: 0 auto;
     padding: 24px;
 }
@@ -72,7 +72,7 @@ body {
 .users-table {
     width: 100%;
     border-collapse: collapse;
-    min-width: 1300px;
+    min-width: 1500px;
 }
 
 .users-table thead th {

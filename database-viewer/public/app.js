@@ -50,6 +50,8 @@ async function loadUsers() {
               <th>Анкета</th>
               <th>Предпочтения</th>
               <th>Интересы</th>
+              <th>Вредные привычки</th>
+              <th>Предпочитаемые вредные привычки</th>
             </tr>
           </thead>
           <tbody>
@@ -73,7 +75,6 @@ async function loadUsers() {
                     <div class="pref-box">
                       <div><b>Цель:</b> ${user.relationship_goal}</div>
                       <div><b>Образ жизни:</b> ${user.lifestyle}</div>
-                      <div><b>Вредные привычки:</b> ${user.bad_habits || '-'}</div>
                       <div class="bio-cell"><b>Bio:</b> ${user.bio || '-'}</div>
                     </div>
                   </td>
@@ -85,12 +86,19 @@ async function loadUsers() {
                       <div><b>Город:</b> ${user.preferred_city || '-'}</div>
                       <div><b>Цель:</b> ${user.preferred_goal || '-'}</div>
                       <div><b>Образ жизни:</b> ${user.preferred_lifestyle || '-'}</div>
-                      <div><b>Вредные привычки:</b> ${user.preferred_bad_habits || '-'}</div>
                     </div>
                   </td>
 
                   <td>
                     ${renderTags(user.interests, 'tag')}
+                  </td>
+
+                  <td>
+                    ${renderTags(user.bad_habits, 'tag bad-tag')}
+                  </td>
+
+                  <td>
+                    ${renderTags(user.preferred_bad_habits, 'tag')}
                   </td>
                 </tr>
               `,

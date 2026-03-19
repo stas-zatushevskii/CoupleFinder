@@ -25,15 +25,13 @@ func (r *PostgresUserRepository) ListUsersForMatching(ctx context.Context, limit
 			u.city,
 			u.relationship_goal,
 			u.lifestyle,
-			u.bad_habits,
 			u.bio,
 			p.preferred_gender,
 			p.age_from,
 			p.age_to,
 			p.preferred_city,
 			p.preferred_goal,
-			p.preferred_lifestyle,
-			p.preferred_bad_habits
+			p.preferred_lifestyle
 		FROM users u
 		JOIN user_preferences p ON p.user_id = u.id
 		ORDER BY u.id
@@ -47,6 +45,7 @@ func (r *PostgresUserRepository) ListUsersForMatching(ctx context.Context, limit
 	defer rows.Close()
 
 	var users []domain.User
+
 	for rows.Next() {
 		var u domain.User
 		var pref domain.Preferences
@@ -59,7 +58,6 @@ func (r *PostgresUserRepository) ListUsersForMatching(ctx context.Context, limit
 			&u.City,
 			&u.RelationshipGoal,
 			&u.Lifestyle,
-			&u.BadHabits,
 			&u.Bio,
 			&pref.PreferredGender,
 			&pref.AgeFrom,
@@ -67,12 +65,9 @@ func (r *PostgresUserRepository) ListUsersForMatching(ctx context.Context, limit
 			&pref.PreferredCity,
 			&pref.PreferredGoal,
 			&pref.PreferredLifestyle,
-			&pref.PreferredBadHabits,
 		); err != nil {
 			return nil, err
 		}
-
-		u.Preferences = pref
 
 		interests, err := r.listUserInterests(ctx, u.ID)
 		if err != nil {
@@ -80,6 +75,19 @@ func (r *PostgresUserRepository) ListUsersForMatching(ctx context.Context, limit
 		}
 		u.Interests = interests
 
+		badHabits, err := r.listUserBadHabits(ctx, u.ID)
+		if err != nil {
+			return nil, err
+		}
+		u.BadHabits = badHabits
+
+		preferredBadHabits, err := r.listPreferredBadHabits(ctx, u.ID)
+		if err != nil {
+			return nil, err
+		}
+		pref.PreferredBadHabits = preferredBadHabits
+
+		u.Preferences = pref
 		users = append(users, u)
 	}
 
@@ -117,4 +125,54 @@ func (r *PostgresUserRepository) listUserInterests(ctx context.Context, userID i
 	}
 
 	return interests, nil
+}
+
+func (r *PostgresUserRepository) listUserBadHabits(ctx context.Context, userID int64) ([]string, error) {
+	query := `SELECT bad_habit FROM user_bad_habits WHERE user_id = $1 ORDER BY bad_habit`
+
+	rows, err := r.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var habits []string
+	for rows.Next() {
+		var habit string
+		if err := rows.Scan(&habit); err != nil {
+			return nil, err
+		}
+		habits = append(habits, habit)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return habits, nil
+}
+
+func (r *PostgresUserRepository) listPreferredBadHabits(ctx context.Context, userID int64) ([]string, error) {
+	query := `SELECT bad_habit FROM user_preferred_bad_habits WHERE user_id = $1 ORDER BY bad_habit`
+
+	rows, err := r.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var habits []string
+	for rows.Next() {
+		var habit string
+		if err := rows.Scan(&habit); err != nil {
+			return nil, err
+		}
+		habits = append(habits, habit)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return habits, nil
 }

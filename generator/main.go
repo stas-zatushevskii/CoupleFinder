@@ -20,9 +20,9 @@ type User struct {
 	City             string
 	RelationshipGoal string
 	Lifestyle        string
-	BadHabits        string
 	Bio              string
 	Interests        []string
+	BadHabits        []string
 	Preferences      Preferences
 }
 
@@ -33,7 +33,7 @@ type Preferences struct {
 	PreferredCity      string
 	PreferredGoal      string
 	PreferredLifestyle string
-	PreferredBadHabits string
+	PreferredBadHabits []string
 }
 
 func main() {
@@ -77,7 +77,6 @@ func main() {
 	log.Printf("seed completed: inserted %d users", count)
 }
 
-// generateUser builds random user from constant pools.
 func generateUser(rng *rand.Rand) User {
 	gender := pick(rng, []string{"male", "female"})
 
@@ -95,10 +94,9 @@ func generateUser(rng *rand.Rand) User {
 	bio := pick(rng, bioTemplates)
 	interests := pickUnique(rng, interestsPool, randInt(rng, 3, 6))
 
-	// Под текущую схему одна вредная привычка или none
-	badHabit := "none"
+	badHabits := []string{}
 	if rng.Intn(100) < 35 {
-		badHabit = pick(rng, badHabitsPool[1:]) // без none
+		badHabits = pickUnique(rng, badHabitsPool, randInt(rng, 1, min(3, len(badHabitsPool))))
 	}
 
 	preferredGender := "female"
@@ -124,9 +122,9 @@ func generateUser(rng *rand.Rand) User {
 		preferredLifestyle = pick(rng, lifestyles)
 	}
 
-	preferredBadHabits := "none"
+	preferredBadHabits := []string{}
 	if rng.Intn(100) < 40 {
-		preferredBadHabits = pick(rng, badHabitsPool)
+		preferredBadHabits = pickUnique(rng, badHabitsPool, randInt(rng, 1, min(3, len(badHabitsPool))))
 	}
 
 	return User{
@@ -136,9 +134,9 @@ func generateUser(rng *rand.Rand) User {
 		City:             city,
 		RelationshipGoal: goal,
 		Lifestyle:        lifestyle,
-		BadHabits:        badHabit,
 		Bio:              bio,
 		Interests:        interests,
+		BadHabits:        badHabits,
 		Preferences: Preferences{
 			PreferredGender:    preferredGender,
 			AgeFrom:            ageFrom,
@@ -151,7 +149,6 @@ func generateUser(rng *rand.Rand) User {
 	}
 }
 
-// insertUserAggregate inserts user + preferences + interests.
 func insertUserAggregate(ctx context.Context, db *sql.DB, u User) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -168,10 +165,9 @@ func insertUserAggregate(ctx context.Context, db *sql.DB, u User) error {
 			city,
 			relationship_goal,
 			lifestyle,
-			bad_habits,
 			bio
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id
 	`,
 		u.Name,
@@ -180,7 +176,6 @@ func insertUserAggregate(ctx context.Context, db *sql.DB, u User) error {
 		u.City,
 		u.RelationshipGoal,
 		u.Lifestyle,
-		u.BadHabits,
 		u.Bio,
 	).Scan(&userID)
 	if err != nil {
@@ -195,10 +190,9 @@ func insertUserAggregate(ctx context.Context, db *sql.DB, u User) error {
 			age_to,
 			preferred_city,
 			preferred_goal,
-			preferred_lifestyle,
-			preferred_bad_habits
+			preferred_lifestyle
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`,
 		userID,
 		u.Preferences.PreferredGender,
@@ -207,7 +201,6 @@ func insertUserAggregate(ctx context.Context, db *sql.DB, u User) error {
 		u.Preferences.PreferredCity,
 		u.Preferences.PreferredGoal,
 		u.Preferences.PreferredLifestyle,
-		u.Preferences.PreferredBadHabits,
 	)
 	if err != nil {
 		return err
@@ -218,6 +211,26 @@ func insertUserAggregate(ctx context.Context, db *sql.DB, u User) error {
 			INSERT INTO user_interests (user_id, interest)
 			VALUES ($1, $2)
 		`, userID, interest)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, habit := range u.BadHabits {
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO user_bad_habits (user_id, bad_habit)
+			VALUES ($1, $2)
+		`, userID, habit)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, habit := range u.Preferences.PreferredBadHabits {
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO user_preferred_bad_habits (user_id, bad_habit)
+			VALUES ($1, $2)
+		`, userID, habit)
 		if err != nil {
 			return err
 		}

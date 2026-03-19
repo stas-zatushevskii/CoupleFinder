@@ -32,15 +32,13 @@ app.get('/api/users', async (req, res) => {
                 u.city,
                 u.relationship_goal,
                 u.lifestyle,
-                u.bad_habits,
                 u.bio,
                 p.preferred_gender,
                 p.age_from,
                 p.age_to,
                 p.preferred_city,
                 p.preferred_goal,
-                p.preferred_lifestyle,
-                p.preferred_bad_habits
+                p.preferred_lifestyle
             FROM users u
                      JOIN user_preferences p ON p.user_id = u.id
             WHERE
@@ -56,12 +54,24 @@ app.get('/api/users', async (req, res) => {
         for (const row of result.rows) {
             const interestsResult = await pool.query(
                 `SELECT interest FROM user_interests WHERE user_id = $1 ORDER BY interest`,
-                [row.id]
+                [row.id],
+            )
+
+            const badHabitsResult = await pool.query(
+                `SELECT bad_habit FROM user_bad_habits WHERE user_id = $1 ORDER BY bad_habit`,
+                [row.id],
+            )
+
+            const preferredBadHabitsResult = await pool.query(
+                `SELECT bad_habit FROM user_preferred_bad_habits WHERE user_id = $1 ORDER BY bad_habit`,
+                [row.id],
             )
 
             users.push({
                 ...row,
                 interests: interestsResult.rows.map((r) => r.interest),
+                bad_habits: badHabitsResult.rows.map((r) => r.bad_habit),
+                preferred_bad_habits: preferredBadHabitsResult.rows.map((r) => r.bad_habit),
             })
         }
 

@@ -20,7 +20,9 @@ func (r *PostgresRunRepository) SaveRunResult(ctx context.Context, result domain
 	if err != nil {
 		return err
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() {
+		_ = tx.Rollback()
+	}()
 
 	var runID int64
 	err = tx.QueryRowContext(ctx, `

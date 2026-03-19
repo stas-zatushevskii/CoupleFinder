@@ -7,7 +7,6 @@ CREATE TABLE users (
                        city VARCHAR(100) NOT NULL,
                        relationship_goal VARCHAR(50) NOT NULL,
                        lifestyle VARCHAR(50) NOT NULL,
-                       bad_habits VARCHAR(50) NOT NULL,
                        bio TEXT,
                        created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );

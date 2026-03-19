@@ -32,9 +32,31 @@ type AlgorithmMetrics struct {
 	MinScore        float64 `json:"min_score"`
 }
 
+type SearchFiltersDTO struct {
+	Gender           string   `json:"gender"`
+	AgeFrom          int      `json:"age_from"`
+	AgeTo            int      `json:"age_to"`
+	City             string   `json:"city"`
+	RelationshipGoal string   `json:"relationship_goal"`
+	Lifestyle        string   `json:"lifestyle"`
+	HasBadHabits     bool     `json:"has_bad_habits"`
+	BadHabits        []string `json:"bad_habits"`
+	Interests        []string `json:"interests"`
+}
+
 type RunCompareRequest struct {
 	Limit   int              `json:"limit"`
 	Filters SearchFiltersDTO `json:"filters"`
+}
+
+type CandidateDTO struct {
+	UserID    int64    `json:"user_id"`
+	Name      string   `json:"name"`
+	Age       int      `json:"age"`
+	City      string   `json:"city"`
+	Score     float64  `json:"score"`
+	Interests []string `json:"interests"`
+	BadHabits []string `json:"bad_habits"`
 }
 
 type CompareAlgorithmResultDTO struct {
@@ -50,30 +72,11 @@ type CompareAlgorithmResultDTO struct {
 type CompareSearchResponse struct {
 	Results []CompareAlgorithmResultDTO `json:"results"`
 }
-type SearchFiltersDTO struct {
-	Gender           string   `json:"gender"`
-	AgeFrom          int      `json:"age_from"`
-	AgeTo            int      `json:"age_to"`
-	City             string   `json:"city"`
-	RelationshipGoal string   `json:"relationship_goal"`
-	Lifestyle        string   `json:"lifestyle"`
-	BadHabits        string   `json:"bad_habits"`
-	Interests        []string `json:"interests"`
-}
 
 type RunSearchRequest struct {
 	Algorithm string           `json:"algorithm"`
 	Limit     int              `json:"limit"`
 	Filters   SearchFiltersDTO `json:"filters"`
-}
-
-type CandidateDTO struct {
-	UserID    int64    `json:"user_id"`
-	Name      string   `json:"name"`
-	Age       int      `json:"age"`
-	City      string   `json:"city"`
-	Score     float64  `json:"score"`
-	Interests []string `json:"interests"`
 }
 
 type RunSearchResponse struct {

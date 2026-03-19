@@ -3,7 +3,6 @@ package domain
 type Gender string
 type RelationshipGoal string
 type Lifestyle string
-type BadHabits string
 
 const (
 	GenderMale   Gender = "male"
@@ -23,9 +22,11 @@ const (
 )
 
 const (
-	HabitsNone         BadHabits = "none"
-	HabitsOccasionally BadHabits = "occasionally"
-	HabitsSmoking      BadHabits = "smoking"
+	BadHabitAlcohol    = "alcohol"
+	BadHabitSmoking    = "smoking"
+	BadHabitDrugs      = "drugs"
+	BadHabitGambling   = "gambling"
+	BadHabitOvereating = "overeating"
 )
 
 type Preferences struct {
@@ -35,7 +36,7 @@ type Preferences struct {
 	PreferredCity      string
 	PreferredGoal      RelationshipGoal
 	PreferredLifestyle Lifestyle
-	PreferredBadHabits BadHabits
+	PreferredBadHabits []string
 }
 
 type User struct {
@@ -46,7 +47,7 @@ type User struct {
 	City             string
 	RelationshipGoal RelationshipGoal
 	Lifestyle        Lifestyle
-	BadHabits        BadHabits
+	BadHabits        []string
 	Bio              string
 	Interests        []string
 	Preferences      Preferences

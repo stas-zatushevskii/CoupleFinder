@@ -13,7 +13,7 @@ type SearchFilters struct {
 	City             string
 	RelationshipGoal RelationshipGoal
 	Lifestyle        Lifestyle
-	BadHabits        BadHabits
+	BadHabits        []string
 	Interests        []string
 }
 

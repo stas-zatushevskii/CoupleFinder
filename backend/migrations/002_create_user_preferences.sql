@@ -6,8 +6,7 @@ CREATE TABLE user_preferences (
                                   age_to INT NOT NULL,
                                   preferred_city VARCHAR(100),
                                   preferred_goal VARCHAR(50),
-                                  preferred_lifestyle VARCHAR(50),
-                                  preferred_bad_habits VARCHAR(50)
+                                  preferred_lifestyle VARCHAR(50)
 );
 
 -- +goose Down
