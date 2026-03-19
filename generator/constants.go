@@ -28,8 +28,14 @@ var (
 		"fitness", "photography", "dancing", "animals", "hiking",
 	}
 
+	// Под твою текущую схему bad_habits — ОДНА строка.
 	badHabitsPool = []string{
-		"alcohol", "smoking", "drugs", "gambling", "overeating",
+		"none",
+		"alcohol",
+		"smoking",
+		"drugs",
+		"gambling",
+		"overeating",
 	}
 
 	bioTemplates = []string{
