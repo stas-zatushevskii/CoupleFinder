@@ -20,6 +20,10 @@ func main() {
 		log.Fatal(err)
 	}
 
+	if err := postgres.RunMigrations(db); err != nil {
+		log.Fatal(err)
+	}
+
 	userRepo := postgresrepo.NewPostgresUserRepository(db)
 	runRepo := postgresrepo.NewPostgresRunRepository(db)
 

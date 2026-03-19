@@ -1,3 +1,4 @@
+-- +goose Up
 CREATE TABLE users (
                        id BIGSERIAL PRIMARY KEY,
                        name VARCHAR(100) NOT NULL,
@@ -10,3 +11,6 @@ CREATE TABLE users (
                        bio TEXT,
                        created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- +goose Down
+DROP TABLE if exists users;

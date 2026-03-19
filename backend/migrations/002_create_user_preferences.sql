@@ -1,3 +1,4 @@
+-- +goose Up
 CREATE TABLE user_preferences (
                                   user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
                                   preferred_gender VARCHAR(20) NOT NULL,
@@ -8,3 +9,6 @@ CREATE TABLE user_preferences (
                                   preferred_lifestyle VARCHAR(50),
                                   preferred_bad_habits VARCHAR(50)
 );
+
+-- +goose Down
+DROP TABLE if exists user_preferences;
