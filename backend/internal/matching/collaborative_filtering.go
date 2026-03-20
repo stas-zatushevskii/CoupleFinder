@@ -8,14 +8,18 @@ import (
 )
 
 type CollaborativeFiltering struct {
-	scorer *Scorer
-	topK   int
+	scorer            *Scorer
+	topK              int
+	shortlistPerUser  int
+	minCandidateScore float64
 }
 
 func NewCollaborativeFiltering(scorer *Scorer) *CollaborativeFiltering {
 	return &CollaborativeFiltering{
-		scorer: scorer,
-		topK:   5,
+		scorer:            scorer,
+		topK:              1,
+		shortlistPerUser:  2,
+		minCandidateScore: 0.55,
 	}
 }
 
@@ -26,22 +30,42 @@ func (a *CollaborativeFiltering) Name() string {
 func (a *CollaborativeFiltering) Run(ctx context.Context, users []domain.User) (domain.RunResult, error) {
 	start := time.Now()
 
+	analytics := domain.RunAnalytics{
+		UsersCount: len(users),
+	}
+
 	if len(users) == 0 {
 		return domain.RunResult{
 			AlgorithmName:   a.Name(),
 			ExecutionTimeMs: 0,
 			Pairs:           nil,
 			AvgScore:        0,
+			Analytics:       analytics,
 		}, nil
 	}
 
-	prefs := buildPreferenceLists(users, a.scorer)
+	preparationStart := time.Now()
+
+	prefs := buildPreferenceListsLimited(
+		users,
+		users,
+		a.scorer.FastScore,
+		a.shortlistPerUser,
+		a.minCandidateScore,
+		&analytics,
+	)
 	userMap := usersToMap(users)
+
+	analytics.EligibleEdges = countEligibleEdgesFromPrefs(prefs)
+	analytics.PreparationTimeMs = time.Since(preparationStart).Milliseconds()
+
+	matchingStart := time.Now()
 
 	used := make(map[int64]bool, len(users))
 	pairs := make([]domain.Pair, 0, len(users)/2)
+	orderedUsers := sortUsersByBestCandidate(users, prefs)
 
-	for _, user := range users {
+	for _, user := range orderedUsers {
 		select {
 		case <-ctx.Done():
 			return domain.RunResult{}, ctx.Err()
@@ -59,25 +83,29 @@ func (a *CollaborativeFiltering) Run(ctx context.Context, users []domain.User) (
 
 		for _, candidateID := range candidates {
 			if used[candidateID] {
+				analytics.RejectedCandidates++
 				continue
 			}
 
-			// Упрощенная логика CF для вашей задачи:
-			// формируем пару только если пользователи попали друг другу в top-K.
+			analytics.MutualTopKChecks++
 			if !isMutualTopK(user.ID, candidateID, prefs, a.topK) {
+				analytics.RejectedCandidates++
 				continue
 			}
 
 			candidate, ok := userMap[candidateID]
 			if !ok {
+				analytics.RejectedCandidates++
 				continue
 			}
 
-			scoreAB := a.scorer.Score(user, candidate)
-			scoreBA := a.scorer.Score(candidate, user)
-			finalScore := (scoreAB + scoreBA) / 2
+			scoreStart := time.Now()
+			finalScore := a.scorer.FinalPairScore(user, candidate)
+			analytics.ScoringTimeMs += time.Since(scoreStart).Milliseconds()
+			analytics.ScoreCalls += 2
 
 			if finalScore <= 0 {
+				analytics.RejectedCandidates++
 				continue
 			}
 
@@ -93,11 +121,26 @@ func (a *CollaborativeFiltering) Run(ctx context.Context, users []domain.User) (
 		}
 	}
 
+	analytics.MatchingTimeMs = time.Since(matchingStart).Milliseconds()
+
+	analytics.PairsFound = len(pairs)
+	analytics.UnmatchedUsers = len(users) - len(pairs)*2
+	analytics.CoverageRatio = calcCoverageRatio(len(users), len(pairs))
+
+	scoreStats := calcPairStats(pairs)
+	analytics.BestScore = scoreStats.Best
+	analytics.WorstScore = scoreStats.Worst
+	analytics.AvgScore = scoreStats.Avg
+	analytics.MedianScore = scoreStats.Median
+	analytics.SumScore = scoreStats.Sum
+	analytics.ScoreStdDev = scoreStats.StdDev
+
 	return domain.RunResult{
 		AlgorithmName:   a.Name(),
 		ExecutionTimeMs: time.Since(start).Milliseconds(),
 		Pairs:           pairs,
-		AvgScore:        averageScore(pairs),
+		AvgScore:        analytics.AvgScore,
+		Analytics:       analytics,
 	}, nil
 }
 
@@ -117,4 +160,24 @@ func containsTopK(list []int64, target int64, k int) bool {
 	}
 
 	return false
+}
+
+func countEligibleEdgesFromPrefs(prefs map[int64][]int64) int {
+	seen := make(map[[2]int64]struct{})
+
+	for userID, candidates := range prefs {
+		for _, candidateID := range candidates {
+			key := normalizedPairKey(userID, candidateID)
+			seen[key] = struct{}{}
+		}
+	}
+
+	return len(seen)
+}
+
+func normalizedPairKey(a, b int64) [2]int64 {
+	if a < b {
+		return [2]int64{a, b}
+	}
+	return [2]int64{b, a}
 }

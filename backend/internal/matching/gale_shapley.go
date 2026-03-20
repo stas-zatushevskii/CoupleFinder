@@ -8,11 +8,17 @@ import (
 )
 
 type GaleShapley struct {
-	scorer *Scorer
+	scorer            *Scorer
+	shortlistPerUser  int
+	minCandidateScore float64
 }
 
 func NewGaleShapley(scorer *Scorer) *GaleShapley {
-	return &GaleShapley{scorer: scorer}
+	return &GaleShapley{
+		scorer:            scorer,
+		shortlistPerUser:  6,
+		minCandidateScore: 0.20,
+	}
 }
 
 func (g *GaleShapley) Name() string {
@@ -22,32 +28,62 @@ func (g *GaleShapley) Name() string {
 func (g *GaleShapley) Run(ctx context.Context, users []domain.User) (domain.RunResult, error) {
 	start := time.Now()
 
+	analytics := domain.RunAnalytics{
+		UsersCount: len(users),
+	}
+
 	if len(users) == 0 {
 		return domain.RunResult{
 			AlgorithmName:   g.Name(),
 			ExecutionTimeMs: 0,
 			Pairs:           nil,
 			AvgScore:        0,
+			Analytics:       analytics,
 		}, nil
 	}
 
-	prefs := buildPreferenceLists(users, g.scorer)
-	userMap := usersToMap(users)
+	preparationStart := time.Now()
 
-	// Очередь свободных пользователей.
-	free := make([]int64, 0, len(users))
-	// Индекс следующего кандидата, которому пользователь будет делать "предложение".
-	nextProposalIdx := make(map[int64]int, len(users))
-	// Текущая пара пользователя: matchOf[userID] = partnerID, 0 если пары нет.
+	left, right := splitUsersForStableMatching(users)
+
+	prefsLeft := buildPreferenceListsLimited(
+		left,
+		right,
+		g.scorer.StableScore,
+		g.shortlistPerUser,
+		g.minCandidateScore,
+		&analytics,
+	)
+	prefsRight := buildPreferenceListsLimited(
+		right,
+		left,
+		g.scorer.StableScore,
+		g.shortlistPerUser,
+		g.minCandidateScore,
+		&analytics,
+	)
+
+	prefs := mergePrefs(prefsLeft, prefsRight)
+	userMap := usersToMap(users)
+	rank := buildRankMap(prefs)
+
+	analytics.EligibleEdges = countEligibleEdgesFromPrefs(prefs)
+	analytics.PreparationTimeMs = time.Since(preparationStart).Milliseconds()
+
+	matchingStart := time.Now()
+
+	free := make([]int64, 0, len(left))
+	nextProposalIdx := make(map[int64]int, len(left))
 	matchOf := make(map[int64]int64, len(users))
 
-	for _, u := range users {
+	for _, u := range left {
 		free = append(free, u.ID)
 		nextProposalIdx[u.ID] = 0
 		matchOf[u.ID] = 0
 	}
-
-	rank := buildRankMap(prefs)
+	for _, u := range right {
+		matchOf[u.ID] = 0
+	}
 
 	for len(free) > 0 {
 		select {
@@ -63,41 +99,43 @@ func (g *GaleShapley) Run(ctx context.Context, users []domain.User) (domain.RunR
 		if len(list) == 0 {
 			continue
 		}
-
 		if nextProposalIdx[uID] >= len(list) {
 			continue
 		}
 
 		vID := list[nextProposalIdx[uID]]
 		nextProposalIdx[uID]++
+		analytics.ProposalCount++
 
 		currentPartner := matchOf[vID]
 
-		// Если v свободен — создаем пару.
 		if currentPartner == 0 {
 			matchOf[uID] = vID
 			matchOf[vID] = uID
 			continue
 		}
 
-		// Если v предпочитает нового кандидата текущему — перевыбор.
 		if prefers(rank, vID, uID, currentPartner) {
 			matchOf[uID] = vID
 			matchOf[vID] = uID
-
 			matchOf[currentPartner] = 0
+
 			free = append(free, currentPartner)
+			analytics.SwitchCount++
 			continue
 		}
 
-		// Иначе u остается свободным и попробует следующего кандидата.
 		free = append(free, uID)
 	}
 
-	seen := make(map[int64]bool, len(users))
-	pairs := make([]domain.Pair, 0, len(users)/2)
+	analytics.MatchingTimeMs = time.Since(matchingStart).Milliseconds()
 
-	for _, u := range users {
+	finalScoringStart := time.Now()
+
+	seen := make(map[int64]bool, len(users))
+	pairs := make([]domain.Pair, 0, len(left))
+
+	for _, u := range left {
 		partnerID := matchOf[u.ID]
 		if partnerID == 0 {
 			continue
@@ -111,29 +149,42 @@ func (g *GaleShapley) Run(ctx context.Context, users []domain.User) (domain.RunR
 			continue
 		}
 
-		scoreAB := g.scorer.Score(u, partner)
-		scoreBA := g.scorer.Score(partner, u)
-		finalScore := (scoreAB + scoreBA) / 2
-
-		if finalScore <= 0 {
+		score := g.scorer.FinalPairScore(u, partner)
+		analytics.ScoreCalls += 2
+		if score <= 0 {
 			continue
 		}
 
 		pairs = append(pairs, domain.Pair{
 			UserAID: u.ID,
 			UserBID: partnerID,
-			Score:   finalScore,
+			Score:   score,
 		})
 
 		seen[u.ID] = true
 		seen[partnerID] = true
 	}
 
+	analytics.ScoringTimeMs += time.Since(finalScoringStart).Milliseconds()
+
+	analytics.PairsFound = len(pairs)
+	analytics.UnmatchedUsers = len(users) - len(pairs)*2
+	analytics.CoverageRatio = calcCoverageRatio(len(users), len(pairs))
+
+	scoreStats := calcPairStats(pairs)
+	analytics.BestScore = scoreStats.Best
+	analytics.WorstScore = scoreStats.Worst
+	analytics.AvgScore = scoreStats.Avg
+	analytics.MedianScore = scoreStats.Median
+	analytics.SumScore = scoreStats.Sum
+	analytics.ScoreStdDev = scoreStats.StdDev
+
 	return domain.RunResult{
 		AlgorithmName:   g.Name(),
 		ExecutionTimeMs: time.Since(start).Milliseconds(),
 		Pairs:           pairs,
-		AvgScore:        averageScore(pairs),
+		AvgScore:        analytics.AvgScore,
+		Analytics:       analytics,
 	}, nil
 }
 

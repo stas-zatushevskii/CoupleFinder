@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"backend/internal/domain"
 	"backend/internal/service"
@@ -14,7 +15,10 @@ type Handler struct {
 	searchService *service.SearchService
 }
 
-func NewHandler(matchService *service.MatchService, searchService *service.SearchService) *Handler {
+func NewHandler(
+	matchService *service.MatchService,
+	searchService *service.SearchService,
+) *Handler {
 	return &Handler{
 		matchService:  matchService,
 		searchService: searchService,
@@ -130,6 +134,32 @@ func (h *Handler) RunSearch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+func (h *Handler) GetAnalytics(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	algorithm := r.URL.Query().Get("algorithm")
+
+	runs, err := h.matchService.GetRuns(r.Context(), algorithm)
+	if err != nil {
+		log.Printf("GetAnalytics: error getting analytics: %v", err)
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	resp := AnalyticsResponse{
+		Runs: make([]AnalyticsRunDTO, 0, len(runs)),
+	}
+
+	for _, run := range runs {
+		resp.Runs = append(resp.Runs, toAnalyticsRunDTO(run))
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
@@ -152,6 +182,30 @@ func toRunMatchResponse(result domain.RunResult) RunMatchResponse {
 	}
 
 	return resp
+}
+
+func toAnalyticsRunDTO(run domain.AlgorithmRun) AnalyticsRunDTO {
+	return AnalyticsRunDTO{
+		ID:                run.ID,
+		AlgorithmName:     run.AlgorithmName,
+		UsersCount:        run.UsersCount,
+		EligibleEdges:     run.EligibleEdges,
+		UnmatchedUsers:    run.UnmatchedUsers,
+		PairsFound:        run.PairsFound,
+		ExecutionTimeMs:   run.ExecutionTimeMs,
+		PreparationTimeMs: run.PreparationTimeMs,
+		MatchingTimeMs:    run.MatchingTimeMs,
+		ScoringTimeMs:     run.ScoringTimeMs,
+		ScoreCalls:        run.ScoreCalls,
+		BestScore:         run.BestScore,
+		WorstScore:        run.WorstScore,
+		AvgScore:          run.AvgScore,
+		MedianScore:       run.MedianScore,
+		SumScore:          run.SumScore,
+		CoverageRatio:     run.CoverageRatio,
+		ScoreStdDev:       run.ScoreStdDev,
+		CreatedAt:         run.CreatedAt.Format(time.RFC3339),
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"backend/internal/domain"
 	"backend/internal/repository"
@@ -47,7 +48,8 @@ func (s *MatchService) Run(ctx context.Context, algorithmName string, limit int)
 		return domain.RunResult{}, err
 	}
 
-	if err := s.runRepo.SaveRunResult(ctx, result, len(users)); err != nil {
+	if err := s.runRepo.SaveRunResult(ctx, result); err != nil {
+		log.Println("save run record failed:", err)
 		return domain.RunResult{}, err
 	}
 
@@ -68,7 +70,8 @@ func (s *MatchService) CompareAll(ctx context.Context, limit int) ([]domain.RunR
 			return nil, err
 		}
 
-		if err := s.runRepo.SaveRunResult(ctx, result, len(users)); err != nil {
+		if err := s.runRepo.SaveRunResult(ctx, result); err != nil {
+			log.Println("save run record failed:", err)
 			return nil, err
 		}
 
@@ -76,4 +79,8 @@ func (s *MatchService) CompareAll(ctx context.Context, limit int) ([]domain.RunR
 	}
 
 	return results, nil
+}
+
+func (s *MatchService) GetRuns(ctx context.Context, algorithm string) ([]domain.AlgorithmRun, error) {
+	return s.runRepo.GetRuns(ctx, algorithm)
 }

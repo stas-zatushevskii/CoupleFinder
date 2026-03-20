@@ -25,7 +25,7 @@ func (r *PostgresUserRepository) ListUsersForMatching(ctx context.Context, limit
 			u.city,
 			u.relationship_goal,
 			u.lifestyle,
-			u.bio,
+			u.bio,	
 			p.preferred_gender,
 			p.age_from,
 			p.age_to,

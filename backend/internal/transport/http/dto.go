@@ -85,3 +85,32 @@ type RunSearchResponse struct {
 	TotalFound      int            `json:"total_found"`
 	Candidates      []CandidateDTO `json:"candidates"`
 }
+
+type AnalyticsResponse struct {
+	Runs []AnalyticsRunDTO `json:"runs"`
+}
+
+type AnalyticsRunDTO struct {
+	ID             int64  `json:"id"`
+	AlgorithmName  string `json:"algorithm_name"`
+	UsersCount     int    `json:"users_count"`
+	EligibleEdges  int    `json:"eligible_edges"`
+	UnmatchedUsers int    `json:"unmatched_users"`
+	PairsFound     int    `json:"pairs_found"`
+
+	ExecutionTimeMs   int64 `json:"execution_time_ms"`
+	PreparationTimeMs int64 `json:"preparation_time_ms"`
+	MatchingTimeMs    int64 `json:"matching_time_ms"`
+	ScoringTimeMs     int64 `json:"scoring_time_ms"`
+	ScoreCalls        int64 `json:"score_calls"`
+
+	BestScore     float64 `json:"best_score"`
+	WorstScore    float64 `json:"worst_score"`
+	AvgScore      float64 `json:"avg_score"`
+	MedianScore   float64 `json:"median_score"`
+	SumScore      float64 `json:"sum_score"`
+	CoverageRatio float64 `json:"coverage_ratio"`
+	ScoreStdDev   float64 `json:"score_stddev"`
+
+	CreatedAt string `json:"created_at"`
+}

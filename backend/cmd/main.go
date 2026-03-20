@@ -42,6 +42,7 @@ func main() {
 
 	searchService := service.NewSearchService(
 		userRepo,
+		runRepo,
 		scorer,
 	)
 

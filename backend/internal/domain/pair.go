@@ -11,4 +11,5 @@ type RunResult struct {
 	ExecutionTimeMs int64
 	Pairs           []Pair
 	AvgScore        float64
+	Analytics       RunAnalytics
 }

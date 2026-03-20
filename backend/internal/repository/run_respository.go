@@ -7,5 +7,6 @@ import (
 )
 
 type RunRepository interface {
-	SaveRunResult(ctx context.Context, result domain.RunResult, usersCount int) error
+	SaveRunResult(ctx context.Context, result domain.RunResult) error
+	GetRuns(ctx context.Context, algorithm string) ([]domain.AlgorithmRun, error)
 }

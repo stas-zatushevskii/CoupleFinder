@@ -1,7 +1,7 @@
 import type {
-    HealthResponse,
-    RunSearchRequest,
+    AnalyticsResponse,
     RunSearchResponse,
+    HealthResponse,
 } from '../types/api'
 
 export class ApiClient {
@@ -11,36 +11,41 @@ export class ApiClient {
         this.baseUrl = baseUrl
     }
 
-    private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
-        const response = await fetch(`${this.baseUrl}${path}`, {
-            headers: {
-                'Content-Type': 'application/json',
-                ...(options.headers ?? {}),
-            },
-            ...options,
-        })
-
-        const data = await response.json().catch(() => null)
-
-        if (!response.ok) {
-            const message =
-                data && typeof data === 'object' && 'error' in data
-                    ? String((data as { error: string }).error)
-                    : `HTTP ${response.status}`
-            throw new Error(message)
+    async healthCheck(): Promise<HealthResponse> {
+        const resp = await fetch(`${this.baseUrl}/health`)
+        if (!resp.ok) {
+            throw new Error(`Health check failed: ${resp.status}`)
         }
-
-        return data as T
+        return resp.json()
     }
 
-    healthCheck(): Promise<HealthResponse> {
-        return this.request<HealthResponse>('/health', { method: 'GET' })
-    }
-
-    runSearch(payload: RunSearchRequest): Promise<RunSearchResponse> {
-        return this.request<RunSearchResponse>('/api/v1/search/run', {
+    async runSearch(payload: unknown): Promise<RunSearchResponse> {
+        const resp = await fetch(`${this.baseUrl}/search`, {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
         })
+
+        if (!resp.ok) {
+            const text = await resp.text()
+            throw new Error(text || `Run search failed: ${resp.status}`)
+        }
+
+        return resp.json()
+    }
+
+    async getAnalytics(algorithm?: string): Promise<AnalyticsResponse> {
+        const url = new URL(`${this.baseUrl}/analytics`)
+        if (algorithm) {
+            url.searchParams.set('algorithm', algorithm)
+        }
+
+        const resp = await fetch(url.toString())
+        if (!resp.ok) {
+            const text = await resp.text()
+            throw new Error(text || `Get analytics failed: ${resp.status}`)
+        }
+
+        return resp.json()
     }
 }

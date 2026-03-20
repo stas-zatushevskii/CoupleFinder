@@ -13,124 +13,286 @@ func NewScorer() *Scorer {
 	return &Scorer{}
 }
 
+// ------------------------------------------------------------
+// FINAL / PRECISE SCORE
+// ------------------------------------------------------------
+
 func (s *Scorer) Score(a, b domain.User) float64 {
-	if !passesHardFilters(a.Preferences, b) {
+	base := calcBasePreferenceScore(a.Preferences, a.Interests, b)
+	if base <= 0.01 {
 		return 0
 	}
 
-	interestsScore := calcInterestsScore(a.Interests, b.Interests)
-	ageScore := calcAgeScore(a.Preferences.AgeFrom, a.Preferences.AgeTo, b.Age)
-	cityScore := calcCityScore(a.Preferences.PreferredCity, b.City)
-	goalScore := calcGoalScore(a.Preferences.PreferredGoal, b.RelationshipGoal)
-	lifestyleScore := calcLifestyleScore(a.Preferences.PreferredLifestyle, b.Lifestyle)
-	habitsScore := calcBadHabitsScore(a.Preferences.PreferredBadHabits, b.BadHabits)
+	penalty := calcPreferencePenalty(a.Preferences, b)
+	contrasted := amplify(base)
 
-	score := 0.40*interestsScore +
-		0.20*ageScore +
-		0.15*cityScore +
-		0.10*goalScore +
-		0.10*lifestyleScore +
-		0.05*habitsScore
+	return clamp01(contrasted * penalty)
+}
 
+func (s *Scorer) FinalPairScore(a, b domain.User) float64 {
+	scoreAB := s.Score(a, b)
+	scoreBA := s.Score(b, a)
+	return harmonicMean(scoreAB, scoreBA)
+}
+
+// ------------------------------------------------------------
+// FAST SCORE FOR COLLABORATIVE FILTERING
+// Быстрый и грубый: специально делаем его проще,
+// чтобы CF был быстрым и локальным.
+// ------------------------------------------------------------
+
+func (s *Scorer) FastScore(a, b domain.User) float64 {
+	if a.ID == b.ID {
+		return 0
+	}
+
+	if a.Preferences.PreferredGender != "" && a.Preferences.PreferredGender != b.Gender {
+		return 0
+	}
+
+	if !roughAgeMatch(a.Preferences.AgeFrom, a.Preferences.AgeTo, b.Age, 3) {
+		return 0
+	}
+
+	interests := calcInterestsScoreV2(a.Interests, b.Interests)
+	goal := calcGoalScoreV2(a.Preferences.PreferredGoal, b.RelationshipGoal)
+	city := calcSoftCityScore(a.Preferences.PreferredCity, b.City)
+
+	// Намеренно простой и быстрый score.
+	score := 0.60*interests + 0.30*goal + 0.10*city
 	return clamp01(score)
 }
 
-func (s *Scorer) ScoreBySearch(filters domain.SearchFilters, candidate domain.User) float64 {
-	if filters.Gender != "" && filters.Gender != candidate.Gender {
-		return 0
-	}
-	if candidate.Age < filters.AgeFrom || candidate.Age > filters.AgeTo {
-		return 0
-	}
-	if filters.City != "" && !strings.EqualFold(filters.City, candidate.City) {
+// ------------------------------------------------------------
+// STABLE SCORE FOR GALE-SHAPLEY
+// Специально делаем другой акцент: стабильность предпочтений,
+// а не абсолютный максимум общего score.
+// ------------------------------------------------------------
+
+func (s *Scorer) StableScore(a, b domain.User) float64 {
+	if a.ID == b.ID {
 		return 0
 	}
 
-	interestsScore := calcInterestsScore(filters.Interests, candidate.Interests)
-	ageScore := calcAgeScore(filters.AgeFrom, filters.AgeTo, candidate.Age)
-	cityScore := calcCityScore(filters.City, candidate.City)
-	goalScore := calcGoalScore(filters.RelationshipGoal, candidate.RelationshipGoal)
-	lifestyleScore := calcLifestyleScore(filters.Lifestyle, candidate.Lifestyle)
-	habitsScore := calcSearchBadHabitsScore(filters.BadHabits, candidate.BadHabits)
+	if a.Preferences.PreferredGender != "" && a.Preferences.PreferredGender != b.Gender {
+		return 0
+	}
 
-	score := 0.40*interestsScore +
-		0.20*ageScore +
-		0.15*cityScore +
-		0.10*goalScore +
-		0.10*lifestyleScore +
-		0.05*habitsScore
+	if !roughAgeMatch(a.Preferences.AgeFrom, a.Preferences.AgeTo, b.Age, 5) {
+		return 0
+	}
 
+	age := calcSoftAgeScore(a.Preferences.AgeFrom, a.Preferences.AgeTo, b.Age)
+	goal := calcGoalScoreV2(a.Preferences.PreferredGoal, b.RelationshipGoal)
+	lifestyle := calcLifestyleScoreV2(a.Preferences.PreferredLifestyle, b.Lifestyle)
+	interests := calcInterestsScoreV2(a.Interests, b.Interests)
+
+	// Упор на цели и возраст, чтобы preference list был более "стабильным".
+	score := 0.35*goal + 0.30*age + 0.20*lifestyle + 0.15*interests
 	return clamp01(score)
 }
 
-func passesHardFilters(pref domain.Preferences, candidate domain.User) bool {
-	if pref.PreferredGender != "" && pref.PreferredGender != candidate.Gender {
+func roughAgeMatch(ageFrom, ageTo, age, tolerance int) bool {
+	if ageFrom == 0 && ageTo == 0 {
+		return true
+	}
+
+	if ageTo != 0 && ageFrom > ageTo {
+		ageFrom, ageTo = ageTo, ageFrom
+	}
+
+	if ageFrom != 0 && age < ageFrom-tolerance {
 		return false
 	}
-	if candidate.Age < pref.AgeFrom || candidate.Age > pref.AgeTo {
+	if ageTo != 0 && age > ageTo+tolerance {
 		return false
 	}
-	if pref.PreferredCity != "" && !strings.EqualFold(pref.PreferredCity, candidate.City) {
-		return false
-	}
+
 	return true
 }
 
-func calcInterestsScore(a, b []string) float64 {
-	if len(a) == 0 {
+// ------------------------------------------------------------
+// Search score
+// ------------------------------------------------------------
+
+func (s *Scorer) ScoreBySearch(filters domain.SearchFilters, candidate domain.User) float64 {
+	base := calcBaseSearchScore(filters, candidate)
+	if base <= 0.01 {
 		return 0
 	}
 
-	set := make(map[string]struct{}, len(a))
-	for _, v := range a {
-		set[strings.ToLower(strings.TrimSpace(v))] = struct{}{}
+	penalty := calcSearchPenalty(filters, candidate)
+	score := amplify(base) * penalty
+
+	return clamp01(score)
+}
+
+// ------------------------------------------------------------
+// Base score
+// ------------------------------------------------------------
+
+func calcBasePreferenceScore(pref domain.Preferences, interests []string, candidate domain.User) float64 {
+	interestsScore := calcInterestsScoreV2(interests, candidate.Interests)
+	ageScore := calcSoftAgeScore(pref.AgeFrom, pref.AgeTo, candidate.Age)
+	cityScore := calcSoftCityScore(pref.PreferredCity, candidate.City)
+	goalScore := calcGoalScoreV2(pref.PreferredGoal, candidate.RelationshipGoal)
+	lifestyleScore := calcLifestyleScoreV2(pref.PreferredLifestyle, candidate.Lifestyle)
+	habitsScore := calcBadHabitsScoreV2(pref.PreferredBadHabits, candidate.BadHabits)
+
+	score := 0.45*interestsScore +
+		0.18*ageScore +
+		0.12*cityScore +
+		0.13*goalScore +
+		0.07*lifestyleScore +
+		0.05*habitsScore
+
+	return clamp01(score)
+}
+
+func calcBaseSearchScore(filters domain.SearchFilters, candidate domain.User) float64 {
+	interestsScore := calcInterestsScoreV2(filters.Interests, candidate.Interests)
+	ageScore := calcSoftAgeScore(filters.AgeFrom, filters.AgeTo, candidate.Age)
+	cityScore := calcSoftCityScore(filters.City, candidate.City)
+	goalScore := calcGoalScoreV2(filters.RelationshipGoal, candidate.RelationshipGoal)
+	lifestyleScore := calcLifestyleScoreV2(filters.Lifestyle, candidate.Lifestyle)
+	habitsScore := calcSearchBadHabitsScoreV2(filters.BadHabits, candidate.BadHabits)
+
+	score := 0.45*interestsScore +
+		0.18*ageScore +
+		0.12*cityScore +
+		0.13*goalScore +
+		0.07*lifestyleScore +
+		0.05*habitsScore
+
+	return clamp01(score)
+}
+
+func calcPreferencePenalty(pref domain.Preferences, candidate domain.User) float64 {
+	penalty := 1.0
+
+	if pref.PreferredGender != "" && pref.PreferredGender != candidate.Gender {
+		penalty *= 0.10
 	}
 
+	if pref.PreferredCity != "" && !strings.EqualFold(pref.PreferredCity, candidate.City) {
+		penalty *= 0.55
+	}
+
+	if pref.AgeFrom > 0 || pref.AgeTo > 0 {
+		if candidate.Age < pref.AgeFrom || candidate.Age > pref.AgeTo {
+			penalty *= 0.35
+		}
+	}
+
+	return penalty
+}
+
+func calcSearchPenalty(filters domain.SearchFilters, candidate domain.User) float64 {
+	penalty := 1.0
+
+	if filters.Gender != "" && filters.Gender != candidate.Gender {
+		penalty *= 0.10
+	}
+
+	if filters.City != "" && !strings.EqualFold(filters.City, candidate.City) {
+		penalty *= 0.55
+	}
+
+	if filters.AgeFrom > 0 || filters.AgeTo > 0 {
+		if candidate.Age < filters.AgeFrom || candidate.Age > filters.AgeTo {
+			penalty *= 0.35
+		}
+	}
+
+	return penalty
+}
+
+func amplify(v float64) float64 {
+	return math.Pow(clamp01(v), 1.8)
+}
+
+func calcInterestsScoreV2(a, b []string) float64 {
+	if len(a) == 0 || len(b) == 0 {
+		return 0
+	}
+
+	setA := toSet(a)
+	setB := toSet(b)
+
 	var common int
-	for _, v := range b {
-		if _, ok := set[strings.ToLower(strings.TrimSpace(v))]; ok {
+	for k := range setA {
+		if _, ok := setB[k]; ok {
 			common++
 		}
 	}
 
-	return float64(common) / float64(len(a))
-}
+	union := len(setA) + len(setB) - common
+	if union == 0 {
+		return 0
+	}
 
-func calcAgeScore(ageFrom, ageTo, candidateAge int) float64 {
-	center := float64(ageFrom+ageTo) / 2.0
-	diff := math.Abs(float64(candidateAge) - center)
-
-	maxAllowedDiff := math.Max(float64(ageTo-ageFrom)/2.0, 1)
-	score := 1 - diff/maxAllowedDiff
+	score := float64(common) / float64(union)
+	if common >= 3 {
+		score += 0.10
+	}
 
 	return clamp01(score)
 }
 
-func calcCityScore(expectedCity, candidateCity string) float64 {
+func calcSoftAgeScore(ageFrom, ageTo, candidateAge int) float64 {
+	if ageFrom == 0 && ageTo == 0 {
+		return 1
+	}
+
+	if ageFrom > ageTo && ageTo != 0 {
+		ageFrom, ageTo = ageTo, ageFrom
+	}
+
+	center := float64(ageFrom+ageTo) / 2.0
+	diff := math.Abs(float64(candidateAge) - center)
+	halfRange := math.Max(float64(ageTo-ageFrom)/2.0, 1)
+
+	if candidateAge >= ageFrom && candidateAge <= ageTo {
+		return clamp01(1.0 - 0.4*(diff/halfRange))
+	}
+
+	extraDiff := diff - halfRange
+	score := 0.6 * math.Exp(-extraDiff/4.0)
+
+	return clamp01(score)
+}
+
+func calcSoftCityScore(expectedCity, candidateCity string) float64 {
 	if expectedCity == "" {
 		return 1
 	}
 	if strings.EqualFold(expectedCity, candidateCity) {
 		return 1
 	}
-	return 0
+	return 0.25
 }
 
-func calcGoalScore(expected, actual domain.RelationshipGoal) float64 {
+func calcGoalScoreV2(expected, actual domain.RelationshipGoal) float64 {
 	if expected == "" {
 		return 1
 	}
 	if expected == actual {
 		return 1
 	}
+
 	if (expected == domain.GoalFriendship && actual == domain.GoalCommunication) ||
 		(expected == domain.GoalCommunication && actual == domain.GoalFriendship) {
-		return 0.5
+		return 0.60
 	}
-	return 0
+
+	if expected == domain.GoalSerious || actual == domain.GoalSerious {
+		return 0.15
+	}
+
+	return 0.20
 }
 
-func calcLifestyleScore(expected, actual domain.Lifestyle) float64 {
+func calcLifestyleScoreV2(expected, actual domain.Lifestyle) float64 {
 	if expected == "" {
 		return 1
 	}
@@ -138,58 +300,54 @@ func calcLifestyleScore(expected, actual domain.Lifestyle) float64 {
 		return 1
 	}
 
-	// Подстрой при необходимости под свои актуальные enum'ы lifestyle.
 	if (expected == domain.LifestyleActive && actual == domain.LifestyleBalanced) ||
 		(expected == domain.LifestyleBalanced && actual == domain.LifestyleActive) ||
 		(expected == domain.LifestyleBalanced && actual == domain.LifestyleHome) ||
 		(expected == domain.LifestyleHome && actual == domain.LifestyleBalanced) {
-		return 0.5
+		return 0.55
 	}
 
-	return 0
+	return 0.20
 }
 
-// calcBadHabitsScore сравнивает предпочтительный список привычек пользователя
-// и фактический список привычек кандидата.
-func calcBadHabitsScore(expected, actual []string) float64 {
-	// Если ожиданий нет — не штрафуем.
+func calcBadHabitsScoreV2(expected, actual []string) float64 {
 	if len(expected) == 0 {
-		return 1
+		if len(actual) == 0 {
+			return 1
+		}
+		return 0.85
 	}
 
-	// Если у кандидата нет привычек, а ожидания заданы — совпадений нет.
 	if len(actual) == 0 {
-		return 0
+		return 0.15
 	}
 
 	expectedSet := toSet(expected)
+	actualSet := toSet(actual)
 
 	var common int
-	for _, v := range actual {
-		if _, ok := expectedSet[strings.ToLower(strings.TrimSpace(v))]; ok {
+	for k := range expectedSet {
+		if _, ok := actualSet[k]; ok {
 			common++
 		}
 	}
 
 	if common == 0 {
-		return 0
+		return 0.05
 	}
 
-	// Доля покрытых ожиданий
-	return float64(common) / float64(len(expectedSet))
+	return clamp01(float64(common) / float64(len(expectedSet)))
 }
 
-// calcSearchBadHabitsScore логика для формы поиска.
-// hasBadHabits=false -> кандидат должен быть без привычек.
-// hasBadHabits=true и список пуст -> допускаются любые привычки.
-// hasBadHabits=true и список непустой -> считаем пересечение.
-func calcSearchBadHabitsScore(allowed, candidateHabits []string) float64 {
-
+func calcSearchBadHabitsScoreV2(allowed, candidateHabits []string) float64 {
 	if len(allowed) == 0 {
-		return 1
+		if len(candidateHabits) == 0 {
+			return 1
+		}
+		return 0.90
 	}
 
-	return calcBadHabitsScore(allowed, candidateHabits)
+	return calcBadHabitsScoreV2(allowed, candidateHabits)
 }
 
 func toSet(values []string) map[string]struct{} {
