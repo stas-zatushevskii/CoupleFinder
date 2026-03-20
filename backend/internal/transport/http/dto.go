@@ -1,8 +1,12 @@
 package http
 
 type RunMatchRequest struct {
-	Algorithm string `json:"algorithm"`
-	Limit     int    `json:"limit"`
+	Algorithm string           `json:"algorithm"`
+	Limit     int              `json:"limit"`
+	Filters   SearchFiltersDTO `json:"filters"`
+	UserID    int64            `json:"user_id"`
+	UserGender string          `json:"user_gender"`
+	Personal  bool             `json:"personal"`
 }
 
 type PairDTO struct {
@@ -16,6 +20,7 @@ type RunMatchResponse struct {
 	ExecutionTimeMs int64     `json:"execution_time_ms"`
 	PairsFound      int       `json:"pairs_found"`
 	AvgScore        float64   `json:"avg_score"`
+	SeekerID        int64     `json:"seeker_id"`
 	Pairs           []PairDTO `json:"pairs"`
 }
 
@@ -92,6 +97,7 @@ type AnalyticsResponse struct {
 
 type AnalyticsRunDTO struct {
 	ID             int64  `json:"id"`
+	RunKind        string `json:"run_kind"`
 	AlgorithmName  string `json:"algorithm_name"`
 	UsersCount     int    `json:"users_count"`
 	EligibleEdges  int    `json:"eligible_edges"`
@@ -111,6 +117,18 @@ type AnalyticsRunDTO struct {
 	SumScore      float64 `json:"sum_score"`
 	CoverageRatio float64 `json:"coverage_ratio"`
 	ScoreStdDev   float64 `json:"score_stddev"`
+
+	MutualTopKChecks     int64 `json:"mutual_topk_checks"`
+	RejectedCandidates   int64 `json:"rejected_candidates"`
+	ProposalCount        int64 `json:"proposal_count"`
+	SwitchCount          int64 `json:"switch_count"`
+	Iterations           int   `json:"iterations"`
+	Ants                 int   `json:"ants"`
+	SolutionsBuilt       int64 `json:"solutions_built"`
+	PheromoneUpdates     int64 `json:"pheromone_updates"`
+	RouletteCalls        int64 `json:"roulette_calls"`
+	BestIteration        int   `json:"best_iteration"`
+	ConvergenceIteration int   `json:"convergence_iteration"`
 
 	CreatedAt string `json:"created_at"`
 }

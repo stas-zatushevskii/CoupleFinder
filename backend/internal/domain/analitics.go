@@ -41,6 +41,7 @@ type RunAnalytics struct {
 
 type AlgorithmRun struct {
 	ID             int64
+	RunKind        RunKind
 	AlgorithmName  string
 	UsersCount     int
 	EligibleEdges  int
@@ -60,6 +61,18 @@ type AlgorithmRun struct {
 	SumScore      float64
 	CoverageRatio float64
 	ScoreStdDev   float64
+
+	MutualTopKChecks     int64
+	RejectedCandidates   int64
+	ProposalCount        int64
+	SwitchCount          int64
+	Iterations           int
+	Ants                 int
+	SolutionsBuilt       int64
+	PheromoneUpdates     int64
+	RouletteCalls        int64
+	BestIteration        int
+	ConvergenceIteration int
 
 	CreatedAt time.Time
 }

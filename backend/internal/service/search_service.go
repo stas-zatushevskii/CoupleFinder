@@ -35,7 +35,7 @@ func NewSearchService(
 func (s *SearchService) Run(ctx context.Context, req domain.SearchRequest) (domain.SearchResult, error) {
 	start := time.Now()
 
-	users, err := s.userRepo.ListUsersForSearch(ctx, req.Limit)
+	users, err := s.userRepo.ListUsersForSearch(ctx, req.Limit, req.Filters)
 	if err != nil {
 		return domain.SearchResult{}, err
 	}
@@ -96,6 +96,7 @@ func buildRunResultFromSearch(
 	}
 
 	return domain.RunResult{
+		RunKind:         domain.RunKindSearch,
 		AlgorithmName:   result.AlgorithmName,
 		ExecutionTimeMs: result.ExecutionTimeMs,
 		Pairs:           nil,

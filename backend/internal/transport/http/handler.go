@@ -42,7 +42,39 @@ func (h *Handler) RunMatch(w http.ResponseWriter, r *http.Request) {
 		req.Limit = 100
 	}
 
-	result, err := h.matchService.Run(r.Context(), req.Algorithm, req.Limit)
+	matchFilters := domain.SearchFilters{
+		Gender:           domain.Gender(req.Filters.Gender),
+		AgeFrom:          req.Filters.AgeFrom,
+		AgeTo:            req.Filters.AgeTo,
+		City:             req.Filters.City,
+		RelationshipGoal: domain.RelationshipGoal(req.Filters.RelationshipGoal),
+		Lifestyle:        domain.Lifestyle(req.Filters.Lifestyle),
+		BadHabits:        req.Filters.BadHabits,
+		Interests:        req.Filters.Interests,
+	}
+
+	if req.Personal {
+		seekerGender := domain.Gender(req.UserGender)
+		if seekerGender == "" {
+			// если не пришло, попробуем противоположный выбранному партнеру
+			if matchFilters.Gender == domain.GenderFemale {
+				seekerGender = domain.GenderMale
+			} else {
+				seekerGender = domain.GenderFemale
+			}
+		}
+
+		result, err := h.matchService.RunForUser(r.Context(), req.Algorithm, req.Limit, req.UserID, seekerGender, matchFilters)
+		if err != nil {
+			log.Printf("RunMatch personal: error running run: %v", err)
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, toRunMatchResponse(result))
+		return
+	}
+
+	result, err := h.matchService.Run(r.Context(), req.Algorithm, req.Limit, matchFilters)
 	if err != nil {
 		log.Printf("RunMatch: error running run: %v", err)
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -54,6 +86,18 @@ func (h *Handler) RunMatch(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) CompareAlgorithms(w http.ResponseWriter, r *http.Request) {
 	limit := 100
+
+	if r.ContentLength > 0 {
+		var req RunCompareRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			log.Printf("CompareAlgorithms: error decoding body: %v", err)
+			writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+		if req.Limit > 0 {
+			limit = req.Limit
+		}
+	}
 
 	results, err := h.matchService.CompareAll(r.Context(), limit)
 	if err != nil {
@@ -170,6 +214,7 @@ func toRunMatchResponse(result domain.RunResult) RunMatchResponse {
 		ExecutionTimeMs: result.ExecutionTimeMs,
 		PairsFound:      len(result.Pairs),
 		AvgScore:        result.AvgScore,
+		SeekerID:        result.SeekerID,
 		Pairs:           make([]PairDTO, 0, len(result.Pairs)),
 	}
 
@@ -186,25 +231,37 @@ func toRunMatchResponse(result domain.RunResult) RunMatchResponse {
 
 func toAnalyticsRunDTO(run domain.AlgorithmRun) AnalyticsRunDTO {
 	return AnalyticsRunDTO{
-		ID:                run.ID,
-		AlgorithmName:     run.AlgorithmName,
-		UsersCount:        run.UsersCount,
-		EligibleEdges:     run.EligibleEdges,
-		UnmatchedUsers:    run.UnmatchedUsers,
-		PairsFound:        run.PairsFound,
-		ExecutionTimeMs:   run.ExecutionTimeMs,
-		PreparationTimeMs: run.PreparationTimeMs,
-		MatchingTimeMs:    run.MatchingTimeMs,
-		ScoringTimeMs:     run.ScoringTimeMs,
-		ScoreCalls:        run.ScoreCalls,
-		BestScore:         run.BestScore,
-		WorstScore:        run.WorstScore,
-		AvgScore:          run.AvgScore,
-		MedianScore:       run.MedianScore,
-		SumScore:          run.SumScore,
-		CoverageRatio:     run.CoverageRatio,
-		ScoreStdDev:       run.ScoreStdDev,
-		CreatedAt:         run.CreatedAt.Format(time.RFC3339),
+		ID:                   run.ID,
+		RunKind:              string(run.RunKind),
+		AlgorithmName:        run.AlgorithmName,
+		UsersCount:           run.UsersCount,
+		EligibleEdges:        run.EligibleEdges,
+		UnmatchedUsers:       run.UnmatchedUsers,
+		PairsFound:           run.PairsFound,
+		ExecutionTimeMs:      run.ExecutionTimeMs,
+		PreparationTimeMs:    run.PreparationTimeMs,
+		MatchingTimeMs:       run.MatchingTimeMs,
+		ScoringTimeMs:        run.ScoringTimeMs,
+		ScoreCalls:           run.ScoreCalls,
+		BestScore:            run.BestScore,
+		WorstScore:           run.WorstScore,
+		AvgScore:             run.AvgScore,
+		MedianScore:          run.MedianScore,
+		SumScore:             run.SumScore,
+		CoverageRatio:        run.CoverageRatio,
+		ScoreStdDev:          run.ScoreStdDev,
+		MutualTopKChecks:     run.MutualTopKChecks,
+		RejectedCandidates:   run.RejectedCandidates,
+		ProposalCount:        run.ProposalCount,
+		SwitchCount:          run.SwitchCount,
+		Iterations:           run.Iterations,
+		Ants:                 run.Ants,
+		SolutionsBuilt:       run.SolutionsBuilt,
+		PheromoneUpdates:     run.PheromoneUpdates,
+		RouletteCalls:        run.RouletteCalls,
+		BestIteration:        run.BestIteration,
+		ConvergenceIteration: run.ConvergenceIteration,
+		CreatedAt:            run.CreatedAt.Format(time.RFC3339),
 	}
 }
 

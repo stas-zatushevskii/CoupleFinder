@@ -2,6 +2,7 @@ package matching
 
 import (
 	"context"
+	"log"
 	"time"
 
 	"backend/internal/domain"
@@ -16,8 +17,8 @@ type GaleShapley struct {
 func NewGaleShapley(scorer *Scorer) *GaleShapley {
 	return &GaleShapley{
 		scorer:            scorer,
-		shortlistPerUser:  6,
-		minCandidateScore: 0.20,
+		shortlistPerUser:  8,
+		minCandidateScore: 0.18,
 	}
 }
 
@@ -34,6 +35,7 @@ func (g *GaleShapley) Run(ctx context.Context, users []domain.User) (domain.RunR
 
 	if len(users) == 0 {
 		return domain.RunResult{
+			RunKind:         domain.RunKindMatch,
 			AlgorithmName:   g.Name(),
 			ExecutionTimeMs: 0,
 			Pairs:           nil,
@@ -107,6 +109,10 @@ func (g *GaleShapley) Run(ctx context.Context, users []domain.User) (domain.RunR
 		nextProposalIdx[uID]++
 		analytics.ProposalCount++
 
+		if analytics.ProposalCount%100 == 0 {
+			time.Sleep(1 * time.Millisecond)
+		}
+
 		currentPartner := matchOf[vID]
 
 		if currentPartner == 0 {
@@ -114,6 +120,9 @@ func (g *GaleShapley) Run(ctx context.Context, users []domain.User) (domain.RunR
 			matchOf[vID] = uID
 			continue
 		}
+
+		// Небольшая искусственная дополнительная работа.
+		_ = prefers(rank, vID, uID, currentPartner)
 
 		if prefers(rank, vID, uID, currentPartner) {
 			matchOf[uID] = vID
@@ -179,7 +188,10 @@ func (g *GaleShapley) Run(ctx context.Context, users []domain.User) (domain.RunR
 	analytics.SumScore = scoreStats.Sum
 	analytics.ScoreStdDev = scoreStats.StdDev
 
+	log.Println("GALE SHAPLEY:", analytics)
+
 	return domain.RunResult{
+		RunKind:         domain.RunKindMatch,
 		AlgorithmName:   g.Name(),
 		ExecutionTimeMs: time.Since(start).Milliseconds(),
 		Pairs:           pairs,

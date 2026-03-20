@@ -300,10 +300,10 @@ func calcLifestyleScoreV2(expected, actual domain.Lifestyle) float64 {
 		return 1
 	}
 
-	if (expected == domain.LifestyleActive && actual == domain.LifestyleBalanced) ||
-		(expected == domain.LifestyleBalanced && actual == domain.LifestyleActive) ||
-		(expected == domain.LifestyleBalanced && actual == domain.LifestyleHome) ||
-		(expected == domain.LifestyleHome && actual == domain.LifestyleBalanced) {
+	if (expected == domain.LifestyleActive && actual == domain.LifestyleFamily) ||
+		(expected == domain.LifestyleFamily && actual == domain.LifestyleActive) ||
+		(expected == domain.LifestyleFamily && actual == domain.LifestylePassive) ||
+		(expected == domain.LifestylePassive && actual == domain.LifestyleFamily) {
 		return 0.55
 	}
 

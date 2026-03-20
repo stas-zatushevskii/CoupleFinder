@@ -10,7 +10,7 @@
 - формирует предпочтения пользователя
 - выбирает случайный набор интересов
 - при необходимости добавляет вредные привычки
-- сохраняет данные в таблицы базы
+- сохраняет данные в таблицы базы батчами и параллельно несколькими worker'ами
 
 ## Какие таблицы заполняет
 
@@ -20,13 +20,14 @@
 - `user_preferences`
 - `user_interests`
 - `user_bad_habits`
+- `user_preferred_bad_habits`
 
 ## Где находится
 
-Обычно точка входа располагается здесь:
+Точка входа находится здесь:
 
 ```text
-cmd/seed/main.go
+generator/main.go
 ```
 
 ## Как запускать
@@ -34,13 +35,13 @@ cmd/seed/main.go
 Через переменную окружения `POSTGRES_DSN`:
 
 ```bash
-POSTGRES_DSN="postgres://postgres:postgres@localhost:5432/couplefinder?sslmode=disable" go run ./cmd/seed -count 300
+cd generator && POSTGRES_DSN="postgres://postgres:postgres@localhost:5432/couplefinder?sslmode=disable" go run . -count 300
 ```
 
 Или явно через флаг `-dsn`:
 
 ```bash
-go run ./cmd/seed -count 300 -dsn "postgres://postgres:postgres@localhost:5432/couplefinder?sslmode=disable"
+cd generator && go run . -count 300 -dsn "postgres://postgres:postgres@localhost:5432/couplefinder?sslmode=disable"
 ```
 
 ## Основные параметры
@@ -51,7 +52,7 @@ go run ./cmd/seed -count 300 -dsn "postgres://postgres:postgres@localhost:5432/c
 Пример:
 
 ```bash
-go run ./cmd/seed -count 100
+cd generator && go run . -count 100
 ```
 
 ### `-dsn`
@@ -60,7 +61,25 @@ go run ./cmd/seed -count 100
 Пример:
 
 ```bash
-go run ./cmd/seed -count 100 -dsn "postgres://postgres:postgres@localhost:5432/couplefinder?sslmode=disable"
+cd generator && go run . -count 100 -dsn "postgres://postgres:postgres@localhost:5432/couplefinder?sslmode=disable"
+```
+
+### `-workers`
+Количество параллельных worker'ов.
+
+Пример:
+
+```bash
+cd generator && go run . -count 10000 -workers 8
+```
+
+### `-batch-size`
+Сколько пользователей писать в одной транзакции.
+
+Пример:
+
+```bash
+cd generator && go run . -count 10000 -workers 8 -batch-size 500
 ```
 
 ## Что важно перед запуском

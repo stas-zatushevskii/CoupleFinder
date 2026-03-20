@@ -1,7 +1,10 @@
 import type {
     AnalyticsResponse,
+    CompareAlgorithmsResponse,
+    RunMatchResponse,
     RunSearchResponse,
     HealthResponse,
+    RunMatchRequest,
 } from '../types/api'
 
 export class ApiClient {
@@ -34,6 +37,21 @@ export class ApiClient {
         return resp.json()
     }
 
+    async runMatch(payload: RunMatchRequest): Promise<RunMatchResponse> {
+        const resp = await fetch(`${this.baseUrl}/match`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        })
+
+        if (!resp.ok) {
+            const text = await resp.text()
+            throw new Error(text || `Run match failed: ${resp.status}`)
+        }
+
+        return resp.json()
+    }
+
     async getAnalytics(algorithm?: string): Promise<AnalyticsResponse> {
         const url = new URL(`${this.baseUrl}/analytics`)
         if (algorithm) {
@@ -44,6 +62,21 @@ export class ApiClient {
         if (!resp.ok) {
             const text = await resp.text()
             throw new Error(text || `Get analytics failed: ${resp.status}`)
+        }
+
+        return resp.json()
+    }
+
+    async compareAlgorithms(limit: number): Promise<CompareAlgorithmsResponse> {
+        const resp = await fetch(`${this.baseUrl}/experiments/compare`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ limit }),
+        })
+
+        if (!resp.ok) {
+            const text = await resp.text()
+            throw new Error(text || `Compare algorithms failed: ${resp.status}`)
         }
 
         return resp.json()

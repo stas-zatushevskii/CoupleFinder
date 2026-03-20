@@ -16,9 +16,9 @@ const (
 )
 
 const (
-	LifestyleActive   Lifestyle = "active"
-	LifestyleBalanced Lifestyle = "balanced"
-	LifestyleHome     Lifestyle = "home"
+	LifestyleActive  Lifestyle = "active"
+	LifestyleFamily  Lifestyle = "family"
+	LifestylePassive Lifestyle = "passive"
 )
 
 const (

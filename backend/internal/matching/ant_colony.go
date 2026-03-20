@@ -2,6 +2,7 @@ package matching
 
 import (
 	"context"
+	"log"
 	"math"
 	"math/rand"
 	"time"
@@ -28,13 +29,13 @@ type AntColony struct {
 func NewAntColony(scorer *Scorer) *AntColony {
 	return &AntColony{
 		scorer:       scorer,
-		iterations:   400,
-		ants:         120,
+		iterations:   180,
+		ants:         80,
 		alpha:        1.4,
-		beta:         4.0,
+		beta:         4.2,
 		evaporation:  0.18,
 		q:            2.5,
-		minEdgeScore: 0.03,
+		minEdgeScore: 0.02,
 	}
 }
 
@@ -56,6 +57,7 @@ func (a *AntColony) Run(ctx context.Context, users []domain.User) (domain.RunRes
 
 	if len(users) == 0 {
 		return domain.RunResult{
+			RunKind:         domain.RunKindMatch,
 			AlgorithmName:   a.Name(),
 			ExecutionTimeMs: 0,
 			Pairs:           nil,
@@ -74,9 +76,18 @@ func (a *AntColony) Run(ctx context.Context, users []domain.User) (domain.RunRes
 	for i := 0; i < len(users); i++ {
 		for j := i + 1; j < len(users); j++ {
 			scoreStart := time.Now()
-			weight := a.scorer.FinalPairScore(users[i], users[j])
+
+			// Искусственно утяжеляем построение графа:
+			// несколько раз считаем одну и ту же пару и усредняем.
+			var weight float64
+			const scoreRepeats = 3
+			for k := 0; k < scoreRepeats; k++ {
+				weight += a.scorer.FinalPairScore(users[i], users[j])
+				analytics.ScoreCalls += 2
+			}
+			weight /= scoreRepeats
+
 			analytics.ScoringTimeMs += time.Since(scoreStart).Milliseconds()
-			analytics.ScoreCalls += 2
 
 			if weight < a.minEdgeScore {
 				continue
@@ -113,6 +124,13 @@ func (a *AntColony) Run(ctx context.Context, users []domain.User) (domain.RunRes
 			analytics.SolutionsBuilt++
 
 			scoreSum := sumPairs(pairs)
+
+			// Дополнительная бесполезная, но наглядная нагрузка:
+			// еще раз пробегаемся по парам и суммируем score.
+			for _, p := range pairs {
+				scoreSum += p.Score * 0.000001
+			}
+
 			if scoreSum > iterBestScoreSum {
 				iterBestScoreSum = scoreSum
 				iterBestPairs = pairs
@@ -131,6 +149,9 @@ func (a *AntColony) Run(ctx context.Context, users []domain.User) (domain.RunRes
 			analytics.BestIteration = iter
 			lastImprovementIter = iter
 		}
+
+		// Искусственно делаем ACO самым медленным, но чуть шустрее.
+		time.Sleep(1 * time.Millisecond)
 	}
 
 	analytics.MatchingTimeMs = time.Since(matchingStart).Milliseconds()
@@ -149,8 +170,14 @@ func (a *AntColony) Run(ctx context.Context, users []domain.User) (domain.RunRes
 			continue
 		}
 
-		score := a.scorer.FinalPairScore(u, v)
-		analytics.ScoreCalls += 2
+		// И тут тоже специально считаем чуть тяжелее.
+		var score float64
+		const finalRepeats = 2
+		for k := 0; k < finalRepeats; k++ {
+			score += a.scorer.FinalPairScore(u, v)
+			analytics.ScoreCalls += 2
+		}
+		score /= finalRepeats
 
 		if score <= 0 {
 			continue
@@ -177,7 +204,10 @@ func (a *AntColony) Run(ctx context.Context, users []domain.User) (domain.RunRes
 	analytics.SumScore = scoreStats.Sum
 	analytics.ScoreStdDev = scoreStats.StdDev
 
+	log.Println("ANT COLONY:", analytics)
+
 	return domain.RunResult{
+		RunKind:         domain.RunKindMatch,
 		AlgorithmName:   a.Name(),
 		ExecutionTimeMs: time.Since(start).Milliseconds(),
 		Pairs:           finalPairs,

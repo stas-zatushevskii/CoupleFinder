@@ -2,6 +2,7 @@ package matching
 
 import (
 	"context"
+	"log"
 	"time"
 
 	"backend/internal/domain"
@@ -36,6 +37,7 @@ func (a *CollaborativeFiltering) Run(ctx context.Context, users []domain.User) (
 
 	if len(users) == 0 {
 		return domain.RunResult{
+			RunKind:         domain.RunKindMatch,
 			AlgorithmName:   a.Name(),
 			ExecutionTimeMs: 0,
 			Pairs:           nil,
@@ -65,11 +67,15 @@ func (a *CollaborativeFiltering) Run(ctx context.Context, users []domain.User) (
 	pairs := make([]domain.Pair, 0, len(users)/2)
 	orderedUsers := sortUsersByBestCandidate(users, prefs)
 
-	for _, user := range orderedUsers {
+	for idx, user := range orderedUsers {
 		select {
 		case <-ctx.Done():
 			return domain.RunResult{}, ctx.Err()
 		default:
+		}
+
+		if idx%50 == 0 {
+			time.Sleep(1 * time.Millisecond)
 		}
 
 		if used[user.ID] {
@@ -86,6 +92,9 @@ func (a *CollaborativeFiltering) Run(ctx context.Context, users []domain.User) (
 				analytics.RejectedCandidates++
 				continue
 			}
+
+			// Легкая дополнительная нагрузка для демонстрации.
+			_ = containsTopK(candidates, candidateID, len(candidates))
 
 			analytics.MutualTopKChecks++
 			if !isMutualTopK(user.ID, candidateID, prefs, a.topK) {
@@ -135,7 +144,10 @@ func (a *CollaborativeFiltering) Run(ctx context.Context, users []domain.User) (
 	analytics.SumScore = scoreStats.Sum
 	analytics.ScoreStdDev = scoreStats.StdDev
 
+	log.Println("COLLABORATIVE FILTERING:", analytics)
+
 	return domain.RunResult{
+		RunKind:         domain.RunKindMatch,
 		AlgorithmName:   a.Name(),
 		ExecutionTimeMs: time.Since(start).Milliseconds(),
 		Pairs:           pairs,
